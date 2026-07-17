@@ -31,11 +31,6 @@ pub struct Env {
     pub trace: bool,
 }
 
-pub fn default_paths() -> (PathBuf, PathBuf) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../promise");
-    (root.join("registry.yaml"), root.join("overrides.yaml"))
-}
-
 fn method_from_str(s: &str) -> Option<Method> {
     serde_yaml::from_str::<Method>(s).ok()
 }
@@ -212,7 +207,7 @@ mod tests {
     #[test]
     fn missing_overrides_file_is_silent() {
         // Self-contained (temp base registry): a missing *overrides* file must not
-        // fail the load, independent of any monorepo file layout.
+        // fail the load, independent of any particular file layout.
         let dir = std::env::temp_dir().join("reg_test_missing_ovr");
         std::fs::create_dir_all(&dir).unwrap();
         let rp = dir.join("r.yaml");
@@ -224,21 +219,6 @@ mod tests {
         let bogus = std::path::Path::new("/nonexistent/overrides.yaml");
         assert!(load(&rp, Some(bogus)).is_ok());
         std::fs::remove_dir_all(&dir).ok();
-    }
-    #[test]
-    fn real_registry_loads() {
-        // Integration gate over the monorepo's own promise/registry.yaml; that file
-        // lives in the private dotclaude repo, not in this extracted crate, so the
-        // test self-skips when it is absent (a standalone checkout).
-        let (rp, op) = default_paths();
-        if !rp.exists() {
-            eprintln!("skip: monorepo promise/registry.yaml absent — standalone build");
-            return;
-        }
-        let reg = load(&rp, Some(&op)).unwrap();
-        assert_eq!(reg.version, "2.4");
-        assert!(reg.promises.contains_key("complete-output"));
-        assert!(reg.promises.contains_key("docs-currency"));
     }
 
     /// FIX I-2: `available()` excludes promises whose YAML spec has NO `requires:` key.
@@ -287,86 +267,5 @@ mod tests {
             "keyless requires must be excluded"
         );
         std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// MINOR: every pattern in the real registry.yaml must compile under the regex crate.
-    /// Catches any future pattern addition that uses unsupported syntax (e.g. lookaheads).
-    #[test]
-    fn real_registry_all_patterns_compile() {
-        use crate::patterns::{compile_ci, compile_cs};
-        let (rp, op) = default_paths();
-        if !rp.exists() {
-            eprintln!("skip: monorepo promise/registry.yaml absent — standalone build");
-            return;
-        }
-        let reg = load(&rp, Some(&op)).unwrap();
-        for (id, spec) in &reg.promises {
-            if let Some(p) = &spec.pattern {
-                compile_ci(p)
-                    .unwrap_or_else(|e| panic!("promise {id}: pattern ci-compile failed: {e}"));
-            }
-            if let Some(tfp) = &spec.test_file_pattern {
-                compile_cs(tfp)
-                    .unwrap_or_else(|e| panic!("promise {id}: test_file_pattern failed: {e}"));
-            }
-            if let Some(fps) = &spec.forbidden_patterns {
-                for fp in fps {
-                    compile_cs(fp).unwrap_or_else(|e| {
-                        panic!("promise {id}: forbidden_pattern '{fp}' failed: {e}")
-                    });
-                }
-            }
-        }
-    }
-
-    /// Every promise verification pattern declared in agents/*.md must compile
-    /// under the regex crate — the same gate as the registry, extended to the
-    /// per-agent promise blocks. The live verifier compiles these at runtime;
-    /// this catches lookaround, backreferences, or mid-pattern inline flags that
-    /// the regex crate rejects before they reach production.
-    #[test]
-    fn real_agent_promise_patterns_compile() {
-        use crate::patterns::compile_ci;
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../agents");
-        if !dir.is_dir() {
-            eprintln!("skip: monorepo agents/ dir absent — standalone build");
-            return;
-        }
-        let mut checked = 0usize;
-        for entry in std::fs::read_dir(&dir).expect("agents dir readable") {
-            let path = entry.unwrap().path();
-            let name = path.file_name().unwrap().to_string_lossy().to_string();
-            if !name.ends_with(".md") || name == "README.md" || name == "seasoned-trader.md" {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path).unwrap();
-            let fm = text
-                .strip_prefix("---")
-                .and_then(|r| r.split("\n---").next())
-                .unwrap_or_else(|| panic!("{name}: no YAML frontmatter"));
-            let doc: serde_yaml::Value = serde_yaml::from_str(fm)
-                .unwrap_or_else(|e| panic!("{name}: frontmatter YAML: {e}"));
-            let offered = doc
-                .get("promises_offered")
-                .and_then(|v| v.as_sequence())
-                .unwrap_or_else(|| panic!("{name}: missing promises_offered list"));
-            for p in offered {
-                let pid = p.get("id").and_then(|v| v.as_str()).unwrap_or("?");
-                if let Some(pat) = p
-                    .get("verification")
-                    .and_then(|v| v.get("pattern"))
-                    .and_then(|v| v.as_str())
-                {
-                    compile_ci(pat).unwrap_or_else(|e| {
-                        panic!("agent {name} promise {pid}: pattern '{pat}' won't compile: {e}")
-                    });
-                    checked += 1;
-                }
-            }
-        }
-        assert!(
-            checked > 100,
-            "expected >100 agent patterns, checked {checked}"
-        );
     }
 }
