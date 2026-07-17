@@ -211,13 +211,30 @@ mod tests {
     }
     #[test]
     fn missing_overrides_file_is_silent() {
-        let (rp, _) = default_paths();
+        // Self-contained (temp base registry): a missing *overrides* file must not
+        // fail the load, independent of any monorepo file layout.
+        let dir = std::env::temp_dir().join("reg_test_missing_ovr");
+        std::fs::create_dir_all(&dir).unwrap();
+        let rp = dir.join("r.yaml");
+        std::fs::write(
+            &rp,
+            "version: \"1\"\npromises:\n  a:\n    type: standing\n    method: output_length\n    requires: null\n",
+        )
+        .unwrap();
         let bogus = std::path::Path::new("/nonexistent/overrides.yaml");
         assert!(load(&rp, Some(bogus)).is_ok());
+        std::fs::remove_dir_all(&dir).ok();
     }
     #[test]
     fn real_registry_loads() {
+        // Integration gate over the monorepo's own promise/registry.yaml; that file
+        // lives in the private dotclaude repo, not in this extracted crate, so the
+        // test self-skips when it is absent (a standalone checkout).
         let (rp, op) = default_paths();
+        if !rp.exists() {
+            eprintln!("skip: monorepo promise/registry.yaml absent — standalone build");
+            return;
+        }
         let reg = load(&rp, Some(&op)).unwrap();
         assert_eq!(reg.version, "2.4");
         assert!(reg.promises.contains_key("complete-output"));
@@ -278,6 +295,10 @@ mod tests {
     fn real_registry_all_patterns_compile() {
         use crate::patterns::{compile_ci, compile_cs};
         let (rp, op) = default_paths();
+        if !rp.exists() {
+            eprintln!("skip: monorepo promise/registry.yaml absent — standalone build");
+            return;
+        }
         let reg = load(&rp, Some(&op)).unwrap();
         for (id, spec) in &reg.promises {
             if let Some(p) = &spec.pattern {
@@ -307,6 +328,10 @@ mod tests {
     fn real_agent_promise_patterns_compile() {
         use crate::patterns::compile_ci;
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../agents");
+        if !dir.is_dir() {
+            eprintln!("skip: monorepo agents/ dir absent — standalone build");
+            return;
+        }
         let mut checked = 0usize;
         for entry in std::fs::read_dir(&dir).expect("agents dir readable") {
             let path = entry.unwrap().path();

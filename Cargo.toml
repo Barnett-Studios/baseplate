@@ -2,7 +2,17 @@
 name = "dotclaude-support"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.94"
+description = "Shared support layer for the Barnett Studios agentic-harness toolkit — model registry, trace types, path resolution, a cxpak MCP client, and Java-test detection"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/Barnett-Studios/dotclaude-support"
+readme = "README.md"
+keywords = ["llm", "agent", "harness", "mcp", "cxpak"]
+categories = ["development-tools"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 async-trait = "0.1"
