@@ -56,36 +56,6 @@ pub fn framework_root() -> PathBuf {
     PathBuf::from(".")
 }
 
-pub fn logs_dir() -> PathBuf {
-    framework_root().join("promise/logs")
-}
-
-pub fn registry_path() -> PathBuf {
-    framework_root().join("promise/registry.yaml")
-}
-
-pub fn overrides_path() -> PathBuf {
-    framework_root().join("promise/overrides.yaml")
-}
-
-pub fn review_skill_path() -> PathBuf {
-    framework_root().join("promise/skills/review-deterministic-findings.md")
-}
-
-pub fn test_code_reviewer_path() -> PathBuf {
-    framework_root().join("agents/test-code-reviewer.md")
-}
-
-/// Absolute path to the global checkpoints registry.
-pub fn global_checkpoints_path() -> PathBuf {
-    framework_root().join("promise/checkpoints.yaml")
-}
-
-/// Absolute path to the repo-local checkpoints registry under `repo_root`.
-pub fn repo_checkpoints_path(repo_root: &Path) -> PathBuf {
-    repo_root.join(".dotclaude/checkpoints.yaml")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,11 +93,6 @@ mod tests {
             return;
         };
         assert!(root.join(".git").exists());
-    }
-
-    #[test]
-    fn logs_dir_under_root() {
-        assert!(logs_dir().ends_with("promise/logs"));
     }
 
     #[test]
