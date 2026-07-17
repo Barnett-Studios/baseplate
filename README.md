@@ -14,7 +14,7 @@ the trace/finding types they exchange, root/path resolution, a cxpak MCP client,
 detection. Depend on it and use only the pieces you need.
 
 > Part of the Barnett Studios agentic-harness toolkit → cxpak · commitward · abproof · cascadr ·
-> cordon · planner · **baseplate**
+> cordon · slicr · **baseplate**
 
 ## What's inside
 
@@ -67,4 +67,4 @@ Built by [Barnett Studios](https://barnett-studios.com/) — the substrate under
 [cascadr](https://github.com/Barnett-Studios/cascadr) ·
 [abproof](https://github.com/Barnett-Studios/abproof) ·
 [cordon](https://github.com/Barnett-Studios/cordon) ·
-[planner](https://github.com/Barnett-Studios/planner).
+[slicr](https://github.com/Barnett-Studios/slicr).
