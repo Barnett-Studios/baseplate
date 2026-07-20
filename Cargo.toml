@@ -14,6 +14,20 @@ categories = ["development-tools"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[features]
+# `cli` gates the `baseplate` query binary (ADR-0054). Off by default, so library
+# consumers (the compile-time substrate role) pull in no extra build; the release
+# image builds with `--features cli`. No extra dependencies — it uses serde/serde_json
+# and the crate's own registry/patterns/java_test modules.
+cli = []
+
+# The substrate's genuinely-invocable query ops as a one-shot CLI. Only built under
+# `--features cli`, so a plain library consume is unchanged.
+[[bin]]
+name = "baseplate"
+path = "src/main.rs"
+required-features = ["cli"]
+
 [dependencies]
 async-trait = "0.1"
 indexmap = "2"
