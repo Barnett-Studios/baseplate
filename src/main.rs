@@ -54,12 +54,24 @@ impl Drop for TempFile {
 
 /// Write `content` to a uniquely-named temp file. `nonce` disambiguates the two files a single
 /// `registry load` may create (registry + overrides) within one process.
+///
+/// Uses `create_new` (O_EXCL) rather than `fs::write`: the path is predictable, so on a shared
+/// host (the brew/`cargo install` binary, not the isolated container) `fs::write` would *follow* a
+/// pre-existing attacker symlink. O_EXCL makes an existing path a hard error instead — the op then
+/// returns the fail-open error envelope, never a write through a symlink.
 fn write_temp(content: &str, label: &str, nonce: u8) -> Result<TempFile, String> {
+    use std::io::Write as _;
     let path = std::env::temp_dir().join(format!(
         "baseplate-{label}-{}-{nonce}.yaml",
         std::process::id()
     ));
-    std::fs::write(&path, content).map_err(|e| format!("write temp {label} file: {e}"))?;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|e| format!("create temp {label} file: {e}"))?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| format!("write temp {label} file: {e}"))?;
     Ok(TempFile(path))
 }
 
