@@ -1,6 +1,6 @@
 [package]
 name = "baseplate"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.94"
 description = "Shared substrate for agentic-harness tooling — model registry, trace types, path resolution, a cxpak MCP client, and Java-test detection"
