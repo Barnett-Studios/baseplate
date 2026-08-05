@@ -1,6 +1,6 @@
-# Contributing to dotclaude-support
+# Contributing to baseplate
 
-Thanks for your interest in dotclaude-support — the shared support layer for the dotclaude agentic harness. It is one component of the
+Thanks for your interest in baseplate — the shared support layer for the dotclaude agentic harness. It is one component of the
 [Barnett Studios agentic-harness toolkit](https://github.com/Barnett-Studios). This guide
 covers setup, the quality bar every change has to clear, and the conventions that keep the
 project consistent.
@@ -23,8 +23,8 @@ Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
 rustup toolchain install stable
 rustup component add rustfmt clippy
 
-git clone https://github.com/Barnett-Studios/dotclaude-support
-cd dotclaude-support
+git clone https://github.com/Barnett-Studios/baseplate
+cd baseplate
 cargo build
 ```
 
@@ -62,7 +62,7 @@ series reviews far better than one giant commit.
 
 ## The contract is the product
 
-dotclaude-support is defined by its [`CONTRACT.md`](CONTRACT.md): the interface, the invariants, and the
+baseplate is defined by its [`CONTRACT.md`](CONTRACT.md): the interface, the invariants, and the
 guarantees other components rely on. A change that alters observable behavior updates the
 contract **in the same PR**. Swappability is the point — don't break the socket.
 
@@ -90,10 +90,10 @@ under the same four rules — maintainers included:
 
 Please **don't** open a public issue for a security vulnerability. See
 [SECURITY.md](SECURITY.md) — report it privately via GitHub's
-[security advisory](https://github.com/Barnett-Studios/dotclaude-support/security/advisories/new) form so it can be
+[security advisory](https://github.com/Barnett-Studios/baseplate/security/advisories/new) form so it can be
 fixed before disclosure.
 
 ---
 
 Questions that don't fit an issue? Open a
-[discussion](https://github.com/Barnett-Studios/dotclaude-support/discussions). Thanks for contributing.
+[discussion](https://github.com/Barnett-Studios/baseplate/discussions). Thanks for contributing.

@@ -1,5 +1,5 @@
 name: Bug report
-description: Something dotclaude-support did wrong — a crash, a wrong result, or unexpected behavior.
+description: Something baseplate did wrong — a crash, a wrong result, or unexpected behavior.
 labels: ["bug"]
 body:
   - type: markdown
@@ -8,7 +8,7 @@ body:
         Thanks for the report. A minimal reproduction is the single most useful
         thing you can provide — it turns hours of guessing into minutes of fixing.
         For security vulnerabilities, do **not** file here — use a private
-        [security advisory](https://github.com/Barnett-Studios/dotclaude-support/security/advisories/new).
+        [security advisory](https://github.com/Barnett-Studios/baseplate/security/advisories/new).
   - type: textarea
     id: what-happened
     attributes:
@@ -28,14 +28,14 @@ body:
   - type: input
     id: version
     attributes:
-      label: dotclaude-support version
+      label: baseplate version
       description: The released version or the commit SHA you built from.
     validations:
       required: true
   - type: dropdown
     id: install
     attributes:
-      label: How did you install dotclaude-support?
+      label: How did you install baseplate?
       options:
         - "Cargo dependency (crates.io)"
         - Git dependency

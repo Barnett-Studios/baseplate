@@ -20,7 +20,7 @@ private and carries no guarantee.
 
 | Module | Invariant relied on by callers |
 |---|---|
-| `model` | Promise-Theory verification value types (`Observation`, `Confidence`, `PromiseType`, `PromiseSpec`, `ReviewDecision`) are `serde`-(de)serializable with stable wire spellings within a minor. **This module is not a model registry** — it holds no model identifiers, tiers or aliases, and earlier revisions of this contract wrongly promised that it did. |
+| `model` | **Every** public type in the module is a Promise-Theory verification value type, and all of them are `serde`-(de)serializable with stable wire spellings within a minor — including the cross-boundary result payloads `VerificationResult` and `MethodOutcome`. The invariant is stated over the module rather than a list, because a list is what let the previous version cover five of eleven types. **This module is not a model registry** — it holds no model identifiers, tiers or aliases, and earlier revisions of this contract wrongly promised that it did. |
 | `trace` | The trace/finding value types are `serde`-(de)serializable and round-trip stable — they cross component boundaries as JSON. |
 | `paths` | Every well-known path is resolved through an **env override first**, then a deterministic default. Resolution never touches the filesystem to decide a path (pure), so it is testable without a fixture tree. |
 | `registry` | Loading a **missing or malformed** YAML registry is *not* a panic — it returns a typed error the caller can fail-open on. Repo-local entries override global entries by name. |
