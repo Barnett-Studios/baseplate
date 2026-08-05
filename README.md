@@ -6,13 +6,26 @@
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-baseplate-blue?logo=docker)](https://github.com/Barnett-Studios/baseplate/pkgs/container/baseplate)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
+**Status: Folding.** See the [component map](https://github.com/Barnett-Studios).
+
+baseplate is the one repo in the family with no architectural position of its own, and it is being
+dissolved into the components that actually use its contents — tracked in
+[#4](https://github.com/Barnett-Studios/baseplate/issues/4). It calls itself a substrate, but a
+115-byte library surface with two consumers whose largest file is a cxpak MCP client is a grab-bag,
+not a floor. A client belongs with its server; verification types belong with the verifier.
+
+**Nothing is archived and no published version is yanked.** Every release on crates.io stays
+available and anything depending on one keeps working. Destinations are still being decided
+per-module; this README is updated with the map once the moves land, rather than announcing
+them in advance.
+
 **The shared substrate for agentic-harness tooling — the small, dependency-light crate that
 verification, planning, and measurement tools sit on so they don't each re-implement the same floor.**
 
 baseplate is deliberately *not* a tool with a behavioral contract of its own. It is the common floor
-underneath the components that verify, plan, and measure an agentic coding loop: the model registry,
-the trace/finding types they exchange, root/path resolution, a cxpak MCP client, and Java-test
-detection. Depend on it and use only the pieces you need.
+underneath the components that verify, plan, and measure an agentic coding loop: Promise-Theory
+verification value types, the trace/finding types they exchange, root/path resolution, a cxpak MCP
+client, YAML registry loading, and Java-test detection. Depend on it and use only the pieces you need.
 
 > Part of the Barnett Studios agentic-harness toolkit → cxpak · commitward · abproof · cascadr ·
 > cordon · slicr · **baseplate**
@@ -21,10 +34,10 @@ detection. Depend on it and use only the pieces you need.
 
 | Module | Responsibility |
 |---|---|
-| `model` | The model registry — canonical model identifiers and their tiers/aliases. |
+| `model` | Promise-Theory verification value types — `Observation` (Kept/Broken/Partial/Skipped), `Confidence`, `PromiseType`, `PromiseSpec`, `ReviewDecision`. **Not** a model registry: there are no model identifiers, tiers or aliases here. The module name is a misnomer, and it is left in place rather than renamed because the module is moving out under [#4](https://github.com/Barnett-Studios/baseplate/issues/4). |
 | `trace` | The shared trace/finding value types tools exchange (a turn's observed edits). |
 | `paths` | Root resolution — `$BASEPLATE_HOME`-anchored, git-tree aware, with no hard-coded home. |
-| `registry` | Loading and merging YAML registries (promises, checkpoints) with a stable schema. |
+| `registry` | Loading and merging YAML **promise/checkpoint** registries with a stable schema. Unrelated to `model`. |
 | `cxpak` | A thin [rmcp](https://crates.io/crates/rmcp) client for the cxpak MCP server (child-process transport). |
 | `java_test` | Detection of Java test files (unit `*Test.java`, integration `*IT.java`, system `*SIT.java`). |
 | `patterns` | Shared regex primitives compiled once, reused across tools. |
@@ -35,6 +48,9 @@ detection. Depend on it and use only the pieces you need.
 [dependencies]
 baseplate = "0.2"
 ```
+
+While it is Folding, `baseplate = "0.2"` keeps working exactly as it does today. No release is
+yanked and no API is removed without a version bump.
 
 ```rust
 use baseplate::{model, registry, trace};
