@@ -39,5 +39,5 @@ private and carries no guarantee.
 ## Stability of the dependency surface
 
 The crate keeps a small, boring dependency set (serde, regex, tokio, rmcp, thiserror). Adding
-a heavy or language-model-specific dependency here is a contract-level change — this is the
-floor, and the floor stays thin.
+a heavy or language-model-specific dependency here is a contract-level change — two crates
+compile this one in, and it stays thin for their sake.

@@ -19,16 +19,18 @@ available and anything depending on one keeps working. Destinations are still be
 per-module; this README is updated with the map once the moves land, rather than announcing
 them in advance.
 
-**The shared substrate for agentic-harness tooling — the small, dependency-light crate that
-verification, planning, and measurement tools sit on so they don't each re-implement the same floor.**
+**A small, dependency-light crate of shared types and helpers, with two consumers.** Publicly,
+[attestr](https://github.com/Barnett-Studios/attestr) — the Verifier — pins `baseplate = "0.2"`;
+privately, dotclaude-core does the same. Nothing else in the family links it.
 
-baseplate is deliberately *not* a tool with a behavioral contract of its own. It is the common floor
-underneath the components that verify, plan, and measure an agentic coding loop: Promise-Theory
-verification value types, the trace/finding types they exchange, root/path resolution, a cxpak MCP
-client, YAML registry loading, and Java-test detection. Depend on it and use only the pieces you need.
+baseplate is deliberately *not* a tool with a behavioral contract of its own, and it is not the
+floor under the toolkit either — that is the claim [#4](https://github.com/Barnett-Studios/baseplate/issues/4)
+retracts. What is actually here: Promise-Theory verification value types, the trace/finding types
+that go with them, root/path resolution, a cxpak MCP client, YAML registry loading, and Java-test
+detection. Depend on it and use only the pieces you need.
 
 > Part of the Barnett Studios agentic-harness toolkit → cxpak · commitward · abproof · cascadr ·
-> cordon · slicr · **baseplate**
+> cordon · slicr · corpus · attestr · **baseplate**
 
 ## What's inside
 
@@ -110,10 +112,12 @@ inclusion in the work shall be dual-licensed as above, without any additional te
 
 ---
 
-Built by [Barnett Studios](https://barnett-studios.com/) — the substrate under
-[cxpak](https://github.com/Barnett-Studios/cxpak) ·
-[commitward](https://github.com/Barnett-Studios/commitward) ·
-[cascadr](https://github.com/Barnett-Studios/cascadr) ·
-[abproof](https://github.com/Barnett-Studios/abproof) ·
-[cordon](https://github.com/Barnett-Studios/cordon) ·
-[slicr](https://github.com/Barnett-Studios/slicr).
+Built by [Barnett Studios](https://barnett-studios.com/) — part of the agentic-harness toolkit.
+The one public crate that depends on baseplate is
+[attestr](https://github.com/Barnett-Studios/attestr): `baseplate = "0.2"` on every release from
+0.2.0 to 0.4.1, and 0.1.0 on this crate's former name, `dotclaude-support`. The other consumer is
+private. Every other published version of cxpak, commitward, cascadr and abproof declares no
+baseplate dependency (checked against the crates.io index, all versions, not just the latest), and
+cordon, slicr and corpus are not Rust crates. They are siblings in the toolkit; none of them links
+this one. A footer claiming otherwise is what
+[#4](https://github.com/Barnett-Studios/baseplate/issues/4) opened over.
