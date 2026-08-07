@@ -6,14 +6,14 @@ body:
     id: problem
     attributes:
       label: The problem
-      description: What are you trying to do that dotclaude-support makes hard or impossible today?
+      description: What are you trying to do that baseplate makes hard or impossible today?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed solution
-      description: What would you like dotclaude-support to do?
+      description: What would you like baseplate to do?
     validations:
       required: true
   - type: textarea
