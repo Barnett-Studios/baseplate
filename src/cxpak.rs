@@ -251,6 +251,39 @@ impl SpawnBackoff {
 /// Cold index measured 10–14s on a real repo; 25s covers a slow machine with margin.
 /// On expiry the call returns None → the verifier Skips (fail-open, unchanged).
 const INDEX_WARM_BUDGET: std::time::Duration = std::time::Duration::from_secs(25);
+
+/// Override for [`INDEX_WARM_BUDGET`], in milliseconds. Blank or unparseable is ignored.
+///
+/// A real operator reason and a test reason, and it is worth naming both. 25s is measured
+/// against a repo of this size; a cold index on a very large tree can exceed it, and the
+/// consequence is a `None` that reads downstream as "cxpak had nothing to say" rather than
+/// "cxpak was still starting". It is also the only way to reach the budget-expiry branch in
+/// a test without a 25-second test, which is why that branch was unexercised (baseplate#18).
+///
+/// A timeout is a safe thing to expose: lengthening it costs patience and shortening it
+/// costs a Skip, and the fail-open path is unchanged either way.
+const INDEX_WARM_BUDGET_ENV: &str = "CXPAK_INDEX_WARM_BUDGET_MS";
+
+fn index_warm_budget() -> std::time::Duration {
+    std::env::var(INDEX_WARM_BUDGET_ENV)
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map(std::time::Duration::from_millis)
+        .unwrap_or(INDEX_WARM_BUDGET)
+}
+
+/// Is `current` the same connection generation the caller started its call on?
+///
+/// Extracted so the discriminator is assertable without orchestrating the race it exists
+/// for. Only the FIRST error reporter for a generation evicts it; a stale error arriving
+/// after the connection has been replaced must not kill the *new* child. `None` — already
+/// evicted by someone else — is not this generation either.
+///
+/// Identity, not equality: two generations both carrying `false` are different connections,
+/// and `AtomicBool` has no meaningful `==` for this purpose anyway.
+fn is_same_generation(current: Option<&Arc<AtomicBool>>, mine: &Arc<AtomicBool>) -> bool {
+    current.map(|c| Arc::ptr_eq(c, mine)).unwrap_or(false)
+}
 /// Poll interval between "indexing in progress" retries.
 const INDEX_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
 /// Cap the MCP spawn+handshake so a wedged `cxpak serve` cannot hang the caller
@@ -386,7 +419,7 @@ impl CxpakClient for RmcpCxpakClient {
         // expires. cxpak 3.1.0 indexes in the background on spawn; the first call after
         // spawn polls up to ~14s, later calls (warm index) return immediately.
         let tool_name = tool.to_owned();
-        let deadline = tokio::time::Instant::now() + INDEX_WARM_BUDGET;
+        let deadline = tokio::time::Instant::now() + index_warm_budget();
         loop {
             let params = match &args {
                 Value::Object(map) => {
@@ -429,10 +462,8 @@ impl CxpakClient for RmcpCxpakClient {
                     // this connection generation removes it — identified by Arc identity —
                     // so a stale error from a parallel call cannot evict a new connection.
                     let mut guard = self.conn.lock().await;
-                    let is_same_conn = guard
-                        .as_ref()
-                        .map(|c| Arc::ptr_eq(&c.served_one, &served_one))
-                        .unwrap_or(false);
+                    let is_same_conn =
+                        is_same_generation(guard.as_ref().map(|c| &c.served_one), &served_one);
                     if is_same_conn {
                         let conn = guard
                             .take()
@@ -506,6 +537,62 @@ mod tests {
         let h: Health = serde_json::from_value(json!({})).unwrap();
         assert_eq!(h.conventions, 0.0);
         assert!(h.dead_code.is_none());
+    }
+
+    /// baseplate#18: the discriminator that decides WHICH connection generation an error
+    /// evicts. The transport suite covers the eviction — the child dies and `assert_gone`
+    /// proves it — but a single caller has nothing to be confused with, so replacing
+    /// `Arc::ptr_eq` with an unconditional `true` left that suite green.
+    ///
+    /// **Scope, stated rather than implied:** this pins the discriminator, not the
+    /// interleaving it defends against. Reaching that end to end needs a third call to
+    /// create the replacement connection between the first error's eviction and a second
+    /// error's handler — a scheduling order the harness cannot force, because eviction
+    /// kills the child and every parallel caller on that generation learns immediately.
+    /// A test that tried would be timing-dependent, and a flaky guard is worse than a
+    /// scoped one.
+    #[test]
+    fn only_the_generation_that_erred_is_evicted() {
+        let mine = Arc::new(AtomicBool::new(false));
+        let other = Arc::new(AtomicBool::new(false));
+
+        assert!(
+            is_same_generation(Some(&mine), &mine),
+            "the caller's own generation must be evictable, or an error never cleans up"
+        );
+        assert!(
+            !is_same_generation(Some(&other), &mine),
+            "a stale error must not evict the connection that REPLACED its own — that \
+             kills a live child out from under whoever is using it"
+        );
+        assert!(
+            !is_same_generation(None, &mine),
+            "already evicted by someone else is not this generation either"
+        );
+        // Identity, not value: both start `false`, and an equality-based check would call
+        // these the same connection. That is the mutation this test exists for.
+        assert_eq!(
+            mine.load(Ordering::Relaxed),
+            other.load(Ordering::Relaxed),
+            "control: the two Arcs are value-equal, so distinguishing them cannot be \
+             happening by value"
+        );
+    }
+
+    #[test]
+    fn index_warm_budget_falls_back_to_the_constant() {
+        // The override is a documented operator knob, so its failure modes are the
+        // operator's: blank and unparseable must not shorten the budget to zero, which
+        // would turn every cold-index call into an immediate Skip.
+        std::env::remove_var(INDEX_WARM_BUDGET_ENV);
+        assert_eq!(index_warm_budget(), INDEX_WARM_BUDGET);
+        for bad in ["", "   ", "soon", "-1"] {
+            std::env::set_var(INDEX_WARM_BUDGET_ENV, bad);
+            assert_eq!(index_warm_budget(), INDEX_WARM_BUDGET, "input {bad:?}");
+        }
+        std::env::set_var(INDEX_WARM_BUDGET_ENV, "1200");
+        assert_eq!(index_warm_budget(), std::time::Duration::from_millis(1200));
+        std::env::remove_var(INDEX_WARM_BUDGET_ENV);
     }
 
     #[test]

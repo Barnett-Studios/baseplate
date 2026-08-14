@@ -15,8 +15,9 @@
 //! Cases select on the **work_dir**, which reaches the stub as argv `$3`
 //! (`cxpak serve --mcp <work_dir>`). Not an env var: env is process-global and would race.
 //!
-//! Deliberately ONE test: it mutates `PATH`. Cargo gives each integration test file its own
-//! process. Do not add a second test to this file.
+//! Deliberately ONE test: it mutates `PATH` and `CXPAK_INDEX_WARM_BUDGET_MS`, both
+//! process-global. Cargo gives each integration test file its own process. Do not add a
+//! second test to this file.
 
 use baseplate::cxpak::{CxpakClient, RmcpCxpakClient};
 use serde_json::json;
@@ -45,6 +46,23 @@ while IFS= read -r line; do
       case "$dir" in
         *case-ok*)
           printf '{"jsonrpc":"2.0","id":%s,"result":{"content":[{"type":"text","text":"{\\"answered\\":true}"}]}}\n' "$id"
+          ;;
+        # Answers cxpak's still-indexing sentinel on the FIRST call and real content on
+        # the second, driving the retry loop through one poll and out the other side. The
+        # counter lives in a file because each case gets a fresh process per connection.
+        *case-index-then-ok*)
+          n=$(cat "$dir.calls" 2>/dev/null || echo 0); echo $((n+1)) > "$dir.calls"
+          if [ "$n" = 0 ]; then
+            printf '{"jsonrpc":"2.0","id":%s,"result":{"content":[{"type":"text","text":"cxpak: indexing in progress — Retry this call in a few seconds"}]}}\n' "$id"
+          else
+            printf '{"jsonrpc":"2.0","id":%s,"result":{"content":[{"type":"text","text":"{\\"answered\\":true}"}]}}\n' "$id"
+          fi
+          ;;
+        # Never warms. Drives the loop to budget expiry, which the test shortens via
+        # CXPAK_INDEX_WARM_BUDGET_MS — the branch was otherwise a 25-second test.
+        *case-index-forever*)
+          n=$(cat "$dir.calls" 2>/dev/null || echo 0); echo $((n+1)) > "$dir.calls"
+          printf '{"jsonrpc":"2.0","id":%s,"result":{"content":[{"type":"text","text":"cxpak: indexing in progress — Retry this call in a few seconds"}]}}\n' "$id"
           ;;
         *) continue ;;
       esac
@@ -77,6 +95,14 @@ fn alive(pid: i32) -> bool {
         // No ps: fall back to the weaker test rather than silently passing.
         Err(_) => true,
     }
+}
+
+/// How many `tools/call` requests the stub answered for `dir`.
+fn calls(dir: &Path) -> u32 {
+    std::fs::read_to_string(format!("{}.calls", dir.display()))
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
 }
 
 /// The pid the stub recorded for `dir`, or None if it never started.
@@ -157,7 +183,54 @@ async fn the_transport_never_leaves_a_cxpak_child_behind() {
         got
     };
 
+    // 5. cxpak answers its still-indexing sentinel, then real content. The retry loop and
+    //    its poll interval — the path a FIRST call after spawn takes on cxpak 3.1.x, which
+    //    indexes in the background, and the one no case reached (baseplate#18).
+    let warm_dir = root.join("case-index-then-ok");
+    let warmed = RmcpCxpakClient::new(warm_dir.clone())
+        .call("cxpak_context", json!({"op": "overview"}))
+        .await;
+    let warm_polls = calls(&warm_dir);
+
+    // 6. Never warms: the budget expires and the call gives up. Shortened from 25s via the
+    //    documented override, or this single case would dominate the suite's runtime.
+    std::env::set_var("CXPAK_INDEX_WARM_BUDGET_MS", "1500");
+    let cold_dir = root.join("case-index-forever");
+    let t1 = Instant::now();
+    let never_warm = RmcpCxpakClient::new(cold_dir.clone())
+        .call("cxpak_context", json!({"op": "overview"}))
+        .await;
+    let cold_elapsed = t1.elapsed();
+    let cold_polls = calls(&cold_dir);
+    std::env::remove_var("CXPAK_INDEX_WARM_BUDGET_MS");
+
     std::env::set_var("PATH", prev_path);
+
+    assert_eq!(
+        warmed,
+        Some(json!({"answered": true})),
+        "a sentinel followed by content must be retried into a real answer, not returned \
+         as junk — the sentinel is not JSON, so without the retry this is a parse failure"
+    );
+    assert_eq!(
+        warm_polls, 2,
+        "exactly one retry: a loop that did not poll would see 1 call, and one that \
+         ignored the answer would keep going"
+    );
+
+    assert!(
+        never_warm.is_none(),
+        "a cxpak that never warms must give up, not hang"
+    );
+    assert!(
+        cold_polls >= 2,
+        "the budget case must have POLLED, not returned on the first sentinel — {cold_polls} call(s)"
+    );
+    assert!(
+        cold_elapsed >= Duration::from_millis(1500) && cold_elapsed < Duration::from_secs(10),
+        "must run out the shortened budget and stop there, not return early and not wait \
+         out the 25s default (took {cold_elapsed:?})"
+    );
 
     assert!(exited.is_none(), "a child that exits is not a completion");
     assert!(
@@ -177,6 +250,8 @@ async fn the_transport_never_leaves_a_cxpak_child_behind() {
     assert_gone(&mute_dir, "handshake timeout");
     assert_gone(&wedged_dir, "call timeout eviction");
     assert_gone(&ok_dir, "Drop of a live connection");
+    assert_gone(&warm_dir, "Drop after an index-warm retry");
+    assert_gone(&cold_dir, "Drop after the index-warm budget expired");
 
     let _ = std::fs::remove_dir_all(&root);
 }

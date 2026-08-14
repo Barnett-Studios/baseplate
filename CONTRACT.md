@@ -24,7 +24,7 @@ private and carries no guarantee.
 | `trace` | The trace/finding value types are `serde`-(de)serializable and round-trip stable — they cross component boundaries as JSON. |
 | `paths` | Every well-known path is resolved through an **env override first**, then a deterministic default. Resolution never touches the filesystem to decide a path (pure), so it is testable without a fixture tree. |
 | `registry` | Loading a **missing or malformed** YAML registry is *not* a panic — it returns a typed error the caller can fail-open on. Repo-local entries override global entries by name. |
-| `cxpak` | The client tracks the cxpak MCP tool contract (the `op`-parameterized intent tools). A cxpak server that is absent or errors surfaces as a typed error, never a fabricated context bundle. |
+| `cxpak` | The client tracks the cxpak MCP tool contract (the `op`-parameterized intent tools). A cxpak server that is absent or errors surfaces as a typed error, never a fabricated context bundle. A call made before cxpak's background index is warm is **retried**, not returned as junk — the still-indexing response is not JSON, so without the retry it is indistinguishable from a parse failure. The retry budget is 25s, overridable with `CXPAK_INDEX_WARM_BUDGET_MS`; on expiry the call returns `None` and the caller skips (fail-open, unchanged). |
 | `java_test` | Test-file classification matches the documented suffix rules (`*Test.java` / `*Tests.java` / `src/test/`, `*IT.java`, `*SIT.java` / `src/sit/`, anything under `tests/`) exactly — it is the single source of truth for that split. |
 | `patterns` | Shared regexes compile once (`once_cell`) and are `Send + Sync`; callers may hold references across threads. |
 
@@ -34,7 +34,10 @@ private and carries no guarantee.
   (the `cxpak` client spawns the cxpak MCP server as a child process — that is its only
   subprocess, and only when constructed).
 - It holds no global mutable state beyond lazily-compiled regexes.
-- It does not read the environment except through the documented `paths` overrides.
+- It does not read the environment except through the documented `paths` overrides and
+  `CXPAK_INDEX_WARM_BUDGET_MS`. Both are read at the point of use and never cached, and an
+  absent, blank or unparseable value falls back to the compiled default rather than to zero
+  — a budget of zero would turn every cold-index call into an immediate skip.
 
 ## Stability of the dependency surface
 
