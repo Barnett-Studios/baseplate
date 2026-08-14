@@ -37,7 +37,10 @@ fn baseplate_home_resolver() -> Option<PathBuf> {
 ///    resolver 1 finds no `.git` above the installed binary.
 /// 3. `repo_root(current_dir())`, else bare `current_dir()`, else `"."`.
 ///
-/// The host application overrides resolution entirely by setting `$BASEPLATE_HOME`.
+/// `$BASEPLATE_HOME` is therefore **not** a blanket override: resolver 1 runs first, so a
+/// binary that lives inside a git tree ignores it entirely. It is the escape hatch for the
+/// installed-outside-a-tree case, which is the case resolver 1 cannot serve. Pinned by
+/// `an_exe_inside_a_git_tree_ignores_baseplate_home`.
 pub fn framework_root() -> PathBuf {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(root) = repo_root(&exe) {
@@ -114,6 +117,49 @@ mod tests {
             resolved,
             Some(tmp.0.clone()),
             "BASEPLATE_HOME must resolve when it names an existing directory"
+        );
+    }
+
+    #[test]
+    fn an_exe_inside_a_git_tree_ignores_baseplate_home() {
+        // The order IS the contract, and it was documented backwards (#20): CONTRACT.md said
+        // "env override first" while `framework_root` tries `repo_root(current_exe())` first.
+        // Nothing tested it — clean main with the two resolvers swapped was 36 passed, 0
+        // failed — so both readings looked true. This is the test that is red on env-first.
+        let _guard = PATHS_ENV_GUARD.lock().unwrap();
+
+        let exe = std::env::current_exe().expect("a test binary has a path");
+        let Some(exe_root) = repo_root(&exe) else {
+            // Not a silent pass: on an unpacked .crate there is no `.git` above the binary,
+            // so resolver 1 cannot win and there is no ordering to observe here.
+            eprintln!(
+                "SKIPPED an_exe_inside_a_git_tree_ignores_baseplate_home: no .git above {exe:?}"
+            );
+            return;
+        };
+
+        // An existing directory, so `baseplate_home_resolver` would accept it if reached.
+        // Set only for the length of the call and restored immediately: under the correct
+        // order nothing else can observe it, which is the property being asserted.
+        let tmp = unique_tmp("ignored-home");
+        let original = std::env::var("BASEPLATE_HOME").ok();
+        std::env::set_var("BASEPLATE_HOME", &tmp.0);
+        let precondition = baseplate_home_resolver();
+        let resolved = framework_root();
+
+        match original {
+            Some(v) => std::env::set_var("BASEPLATE_HOME", v),
+            None => std::env::remove_var("BASEPLATE_HOME"),
+        }
+
+        assert_eq!(
+            precondition,
+            Some(tmp.0.clone()),
+            "precondition: this BASEPLATE_HOME must be resolvable, else the test proves nothing"
+        );
+        assert_eq!(
+            resolved, exe_root,
+            "resolver 1 (repo_root of the exe) must win over a perfectly good $BASEPLATE_HOME"
         );
     }
 
