@@ -84,6 +84,15 @@ pub fn load(
     })
 }
 
+/// Layer an overrides document over a loaded registry, in place.
+///
+/// **Fail-open by contract**: a document that cannot be used is dropped — to stderr when the YAML
+/// does not parse, in silence when the root is not an `overrides:` mapping — and the load still
+/// succeeds. Callers that must report the outcome decide it before calling; the query CLI's
+/// `overridden_ids` (`src/main.rs`) is one, and it reads this same shape a second time.
+///
+/// So a change to WHICH documents this accepts has a second site: widen the shape here without
+/// widening it there and the CLI answers `valid: false` for a document this function would apply.
 pub fn apply_overrides(promises: &mut IndexMap<String, PromiseSpec>, path: &Path) {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,

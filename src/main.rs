@@ -312,6 +312,18 @@ mod tests {
         assert_eq!(body["valid"], false);
     }
 
+    /// Deterministic, and deliberately not concurrent. The mutation that reverts `write_temp`
+    /// to a fixed per-op nonce is only caught by the registry tests when libtest happens to run
+    /// them in parallel — under `--test-threads=1`, or on a single-core runner, that mutant
+    /// survives and a revert would ship silently. O_EXCL makes a shared name a hard error, so
+    /// the property worth pinning is the name, not the race.
+    #[test]
+    fn two_temp_files_in_one_process_never_share_a_name() {
+        let a = write_temp("x", "registry").unwrap();
+        let b = write_temp("x", "registry").unwrap();
+        assert_ne!(a.0, b.0, "two calls in one process must not share a name");
+    }
+
     #[test]
     fn invalid_request_json_is_a_hard_error_not_a_false_clean_pass() {
         assert!(run_java_test_analyze("not json").is_err());
