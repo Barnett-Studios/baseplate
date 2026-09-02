@@ -91,6 +91,14 @@ An uncompilable pattern or invalid registry is a *result* (`compiles: false` / `
 not a failure; only a malformed **request** yields `status: "error"` + a non-zero exit, so a
 consumer falls back to its in-process path rather than trusting an empty result.
 
+Only the `?`-marked fields are optional. Omitting any other is a malformed request — an absent
+`paths` would otherwise answer *none of them* and an absent `content` *not found*, for input that
+was never read. `overrides_yaml` is a **different schema** from `registry_yaml`: a top-level
+`overrides:` mapping keyed by promise id (`overrides:\n  my-promise:\n    enabled: false`), not
+`version:`/`promises:`. An overrides document that does not parse, or that has no `overrides:` root
+mapping, comes back as `valid: false` naming that document rather than being dropped in silence;
+entries naming a promise the registry does not carry are listed in `overrides_unknown`.
+
 **Honest scope.** `model`/`trace` (shared types) and the `cxpak` client (needs a live MCP server)
 have no mount-free surface and are intentionally not exposed here — this image is baseplate's
 *consumable* face, not its primary role, which stays a linked crate. The image is **standalone**:
