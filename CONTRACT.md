@@ -41,12 +41,25 @@ baseplate v0.3.0
 It fails loudly at compile time rather than silently wiring to the older type, which is why
 this is a sequencing obligation and not a correctness hazard. The order:
 
-1. `attestr` moves to `baseplate = "0.3"` and releases (a re-exported dependency's minor is
+1. `baseplate` publishes `0.3.0` to crates.io.
+2. `attestr` moves to `baseplate = "0.3"` and releases (a re-exported dependency's minor is
    attestr's own minor, per its CONTRACT).
-2. `baseplate` releases `0.3.0`.
 3. The consuming assembly bumps both pins in ONE commit, and fixes the tests that go red in
    that same commit — those failures are the *point* of the bump, so splitting them means
    knowingly landing a red commit.
+
+The order is forced, not preferred: `cargo publish` resolves every dependency against the
+registry before it will upload, so an `attestr` release can only carry `baseplate = "0.3"`
+once that version is actually **on crates.io** — not once it is merged, tagged, or version-
+bumped here. It is not a risky ordering; it is the only one that can execute. attestr's own
+`Cargo.toml` carries the same constraint (*"baseplate + cascadr must be on crates.io before
+attestr"*), so this records the reason rather than restating the rule.
+
+The distinction between bumped and published is the part that bites. On 2026-09-05 this repo
+committed `chore(release): baseplate 0.3.0` while the registry still served only `0.2.0` and
+`0.2.1` — a normal and correct intermediate state, and precisely the window in which an
+attestr release would fail to resolve. Read the registry, not `Cargo.toml`, before starting
+step 2.
 
 **The next release out of this repo is `0.3.0`.** Recorded here so it is not re-litigated. It
 carries three things, each of which independently forces a minor: baseplate#12 and #14, merged
