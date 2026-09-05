@@ -1,6 +1,6 @@
 [package]
 name = "baseplate"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.94"
 description = "Shared support crate for the Barnett Studios agentic-harness toolkit — Promise-Theory verification value types, trace types, path resolution, a cxpak MCP client, YAML registry loading, and Java-test detection. Folding: see issue #4."
