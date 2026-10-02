@@ -171,6 +171,31 @@ pub enum ReviewParser {
     DispatchError,
 }
 
+/// Whether the reviewer ran on a harness distinct from the turn's author, as *observed* by
+/// whoever constructed this decision (attestr#1).
+///
+/// This crate never decides the value of this field — per ADR-0002, attestr's verification
+/// layer is telemetry, not control, and only the glue consumer knows both the author's and
+/// the reviewer's actual identities and owns the cascade between them. This type exists so
+/// that consumer has somewhere honest to record what it saw, rather than a free-text
+/// substring of `ReviewDecision::reasoning` (the alternative attestr#1 rejected: a consumer
+/// branching on prose breaks the moment the prose is reworded).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Independence {
+    /// The reviewer's harness differed from the author's.
+    Independent,
+    /// The reviewer's harness was the same as the author's — the condition attestr#1 exists
+    /// to make visible, not the default assumption.
+    SameHarness,
+    /// No comparison was made, or either identity was unknown. Also what a record persisted
+    /// before this field existed deserializes to (`#[serde(default)]` on
+    /// `ReviewDecision::independence`) — "unknown" and "never observed" are deliberately the
+    /// same value rather than two, so a reader cannot tell them apart and must not try to.
+    #[default]
+    Unknown,
+}
+
 /// The reviewer's structured retry decision (spec §4.3 `reviewer` object).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewDecision {
@@ -179,6 +204,12 @@ pub struct ReviewDecision {
     pub reasoning: Option<String>,
     pub parser: ReviewParser,
     pub reviewer_skill: String,
+    /// `#[serde(default)]`, not a required field: a record written before this field existed
+    /// has no opinion on independence, and `Independence::Unknown` is exactly that — the
+    /// same value a caller that never checked would report deliberately, not a sentinel for
+    /// "this is old data".
+    #[serde(default)]
+    pub independence: Independence,
 }
 
 #[cfg(test)]
@@ -319,11 +350,52 @@ mod tests {
             reasoning: None,
             parser: ReviewParser::UntaggedFallback,
             reviewer_skill: "s".into(),
+            independence: Independence::Unknown,
         };
         let v = serde_json::to_value(&d).unwrap();
         assert_eq!(v["parser"], serde_json::json!("untagged-fallback"));
         assert_eq!(v["action"], serde_json::json!("retry"));
         assert_eq!(v["feedback"], serde_json::json!("do it again"));
+    }
+
+    /// A `ReviewDecision` persisted before `independence` existed has no opinion on it, and
+    /// `#[serde(default)]` must make that mean `Unknown` rather than a deserialize error —
+    /// the whole point of adding a field to data someone already has on disk (attestr#1).
+    #[test]
+    fn a_pre_independence_record_deserializes_to_unknown() {
+        let old = serde_json::json!({
+            "action": "accept",
+            "feedback": null,
+            "reasoning": "looks fine",
+            "parser": "ok",
+            "reviewer_skill": "generic"
+        });
+        let d: ReviewDecision = serde_json::from_value(old)
+            .expect("a record with no independence key must still deserialize");
+        assert_eq!(d.independence, Independence::Unknown);
+    }
+
+    #[test]
+    fn every_independence_value_round_trips_its_wire_form() {
+        const WIRE: [(Independence, &str); 3] = [
+            (Independence::Independent, "independent"),
+            (Independence::SameHarness, "same-harness"),
+            (Independence::Unknown, "unknown"),
+        ];
+        for (value, wire) in WIRE {
+            assert_eq!(
+                serde_json::to_value(value).unwrap(),
+                serde_json::json!(wire),
+                "{value:?} must serialize as {wire:?}"
+            );
+            let back: Independence = serde_json::from_str(&format!("\"{wire}\"")).unwrap();
+            assert_eq!(back, value, "{wire:?} must deserialize back to {value:?}");
+        }
+    }
+
+    #[test]
+    fn independence_default_is_unknown() {
+        assert_eq!(Independence::default(), Independence::Unknown);
     }
 
     #[test]

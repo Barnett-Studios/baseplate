@@ -76,6 +76,30 @@ Two things follow, and both have bitten before:
   tree declares the version the tag names, so a tag cut over an unbumped tree fails that half
   and publishes the crate as `0.2.1`.
 
+`0.3.0` is now on crates.io; the three items above are history, kept rather than deleted because
+the ordering lesson applies again below.
+
+**The next release out of this repo is `0.4.0`.** Recorded here so it is not re-litigated. It
+carries `ReviewDecision::independence: Independence` (attestr#1 — the field a glue consumer uses
+to record whether a reviewer ran on a harness distinct from the turn's author; this crate does
+not decide the value, only gives it somewhere honest to live). `#[serde(default)]` makes a
+record persisted before this field existed deserialize cleanly to `Independence::Unknown`, so
+this is **not** a wire-format break — but it **is** a struct-literal break: any `ReviewDecision {
+..fields.. }` literal elsewhere in the family needs the new field added, which is why this is a
+minor and not a patch despite the wire compatibility.
+
+Known re-pins, so the lockstep isn't rediscovered one broken build at a time:
+
+| repo | file | current pin |
+|---|---|---|
+| `attestr` | `Cargo.toml:50` | `baseplate = "0.3"` |
+| `conductr` (`conductr-core`) | `crates/conductr-core/Cargo.toml:26` | `baseplate = "0.3"` |
+| `dotgithub` (`qa/release-retest`) | `qa/release-retest/Cargo.toml:11` | `baseplate = "0.2"` — already behind `0.3.0`, independent of this release |
+
+`attestr` is the one with an actual `ReviewDecision` struct literal (`src/reviewer.rs`) that
+needs the new field added once it moves to `baseplate = "0.4"`; the other two consume the crate
+without constructing that type and only need the pin bumped to keep resolving a current `baseplate`.
+
 ## Module invariants
 
 | Module | Invariant relied on by callers |
