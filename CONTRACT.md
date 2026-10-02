@@ -88,6 +88,12 @@ this is **not** a wire-format break — but it **is** a struct-literal break: an
 ..fields.. }` literal elsewhere in the family needs the new field added, which is why this is a
 minor and not a patch despite the wire compatibility.
 
+`Unknown` is the fail-open default, not evidence of anything — it is what "never checked" and
+"checked and the identity was missing" both deserialize to, on purpose, since a reader cannot
+and must not try to tell them apart. **A consumer must treat `Unknown` as "independence was not
+shown" and must never gate on `== SameHarness` alone**; a gate written as "proceed unless
+`SameHarness`" treats "nobody checked" as a pass.
+
 Known re-pins, so the lockstep isn't rediscovered one broken build at a time:
 
 | repo | file | current pin |
@@ -96,9 +102,21 @@ Known re-pins, so the lockstep isn't rediscovered one broken build at a time:
 | `conductr` (`conductr-core`) | `crates/conductr-core/Cargo.toml:26` | `baseplate = "0.3"` |
 | `dotgithub` (`qa/release-retest`) | `qa/release-retest/Cargo.toml:11` | `baseplate = "0.2"` — already behind `0.3.0`, independent of this release |
 
-`attestr` is the one with an actual `ReviewDecision` struct literal (`src/reviewer.rs`) that
-needs the new field added once it moves to `baseplate = "0.4"`; the other two consume the crate
-without constructing that type and only need the pin bumped to keep resolving a current `baseplate`.
+Two repos have an actual `ReviewDecision` struct literal that needs the new field added once
+they move to `baseplate = "0.4"` — not just `attestr`:
+
+| repo | literal sites |
+|---|---|
+| `attestr` | `src/reviewer.rs:480, :501, :511` |
+| `conductr` (`conductr-core`) | `crates/conductr-core/src/engine.rs:467, :525` (via the re-exported `baseplate::model`, as `crate::model::ReviewDecision`) |
+
+`dotgithub` (`qa/release-retest`) consumes the crate without constructing that type and only
+needs the pin bumped to keep resolving a current `baseplate`.
+
+Also: a serialized `ReviewDecision` on `0.4` always carries an `"independence"` key that `0.3`
+never did. Not a wire break for a *reader* — neither this crate nor any known consumer derives
+`#[serde(deny_unknown_fields)]` on it, so an extra key is additive — but a writer snapshotting
+fixtures byte-for-byte (a golden-file test comparing serialized JSON) will see new output.
 
 ## Module invariants
 

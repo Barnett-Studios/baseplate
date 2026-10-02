@@ -180,6 +180,12 @@ pub enum ReviewParser {
 /// that consumer has somewhere honest to record what it saw, rather than a free-text
 /// substring of `ReviewDecision::reasoning` (the alternative attestr#1 rejected: a consumer
 /// branching on prose breaks the moment the prose is reworded).
+///
+/// **A consumer must treat `Unknown` as "independence was not shown", never as evidence
+/// either way, and must never gate any decision on `== SameHarness` alone** — `Unknown` is
+/// the fail-open default (no comparison made, an identity missing, or data from before this
+/// field existed), so a gate written the other way around (proceed unless `SameHarness`)
+/// treats "nobody checked" as if it had been checked and passed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Independence {
