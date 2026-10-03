@@ -76,6 +76,48 @@ Two things follow, and both have bitten before:
   tree declares the version the tag names, so a tag cut over an unbumped tree fails that half
   and publishes the crate as `0.2.1`.
 
+`0.3.0` is now on crates.io; the three items above are history, kept rather than deleted because
+the ordering lesson applies again below.
+
+**The next release out of this repo is `0.4.0`.** Recorded here so it is not re-litigated. It
+carries `ReviewDecision::independence: Independence` (attestr#1 — the field a glue consumer uses
+to record whether a reviewer ran on a harness distinct from the turn's author; this crate does
+not decide the value, only gives it somewhere honest to live). `#[serde(default)]` makes a
+record persisted before this field existed deserialize cleanly to `Independence::Unknown`, so
+this is **not** a wire-format break — but it **is** a struct-literal break: any `ReviewDecision {
+..fields.. }` literal elsewhere in the family needs the new field added, which is why this is a
+minor and not a patch despite the wire compatibility.
+
+`Unknown` is the fail-open default, not evidence of anything — it is what "never checked" and
+"checked and the identity was missing" both deserialize to, on purpose, since a reader cannot
+and must not try to tell them apart. **A consumer must treat `Unknown` as "independence was not
+shown" and must never gate on `== SameHarness` alone**; a gate written as "proceed unless
+`SameHarness`" treats "nobody checked" as a pass.
+
+Known re-pins, so the lockstep isn't rediscovered one broken build at a time:
+
+| repo | file | current pin |
+|---|---|---|
+| `attestr` | `Cargo.toml:50` | `baseplate = "0.3"` |
+| `conductr` (`conductr-core`) | `crates/conductr-core/Cargo.toml:26` | `baseplate = "0.3"` |
+| `dotgithub` (`qa/release-retest`) | `qa/release-retest/Cargo.toml:11` | `baseplate = "0.2"` — already behind `0.3.0`, independent of this release |
+
+Two repos have an actual `ReviewDecision` struct literal that needs the new field added once
+they move to `baseplate = "0.4"` — not just `attestr`:
+
+| repo | literal sites |
+|---|---|
+| `attestr` | `src/reviewer.rs:480, :501, :511` |
+| `conductr` (`conductr-core`) | `crates/conductr-core/src/engine.rs:467, :525` (via the re-exported `baseplate::model`, as `crate::model::ReviewDecision`) |
+
+`dotgithub` (`qa/release-retest`) consumes the crate without constructing that type and only
+needs the pin bumped to keep resolving a current `baseplate`.
+
+Also: a serialized `ReviewDecision` on `0.4` always carries an `"independence"` key that `0.3`
+never did. Not a wire break for a *reader* — neither this crate nor any known consumer derives
+`#[serde(deny_unknown_fields)]` on it, so an extra key is additive — but a writer snapshotting
+fixtures byte-for-byte (a golden-file test comparing serialized JSON) will see new output.
+
 ## Module invariants
 
 | Module | Invariant relied on by callers |
