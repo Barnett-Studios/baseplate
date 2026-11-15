@@ -1,6 +1,6 @@
 [package]
 name = "baseplate"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 rust-version = "1.94"
 description = "Shared support crate for the Barnett Studios agentic-harness toolkit — Promise-Theory verification value types, trace types, path resolution, a cxpak MCP client, YAML registry loading, and Java-test detection. Folding: see issue #4."
@@ -34,7 +34,7 @@ indexmap = "2"
 libc = "0.2"
 once_cell = "1"
 regex = "1"
-rmcp = { version = "2", features = ["client", "transport-child-process"] }
+rmcp = { version = "3", features = ["client", "transport-child-process"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 serde_yaml = { package = "serde_norway", version = "0.9" }
